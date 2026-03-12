@@ -6,18 +6,18 @@ MAPA = {
     'Estadio_Akron': {'JVC_Norte': 30, 'Periferico': 25, 'JVC_Sur': 15},
     
     'JVC_Norte': {'Vallarta_Concentro': 12, 'Galerias': 20},
-    'Vallarta_Concentro': {'Tacos_Chapalita': 35},
-    'Galerias': {'Tacos_Chapalita': 15},
+    'Vallarta_Concentro': {'Zoologico': 35},
+    'Galerias': {'Zoologico': 15},
     
     'Periferico': {'P_Metropolitano': 10, 'Rafael_Sanzio': 15},
-    'P_Metropolitano': {'Tacos_Chapalita': 25},
-    'Rafael_Sanzio': {'Tacos_Chapalita': 12},
+    'P_Metropolitano': {'Zoologico': 25},
+    'Rafael_Sanzio': {'Zoologico': 12},
     
     'JVC_Sur': {'Guadalupe': 18, 'Tepeyac': 22},
-    'Guadalupe': {'Tacos_Chapalita': 20},
-    'Tepeyac': {'Tacos_Chapalita': 25},
+    'Guadalupe': {'Zoologico': 20},
+    'Tepeyac': {'Zoologico': 25},
     
-    'Tacos_Chapalita': {}
+    'Zoologico': {}
 }
 
 POS_MAPA = {
@@ -35,7 +35,7 @@ POS_MAPA = {
     'Guadalupe': (475, 500), 
     'Tepeyac': (475, 600),
     
-    'Tacos_Chapalita': (700, 325)
+    'Zoologico': (700, 325)
 }
 
 # --- 2. MOTOR DE BÚSQUEDA (Dijkstra) ---
@@ -72,7 +72,7 @@ class AppGrafoRestaurantes:
         self.canvas = tk.Canvas(root, width=800, height=720, bg="#EAF2F8") # Fondo azul tenue
         self.canvas.pack()
 
-        self.ruta, self.costo = buscar_ruta('Estadio_Akron', 'Tacos_Chapalita')
+        self.ruta, self.costo = buscar_ruta('Estadio_Akron', 'Zoologico')
         self.dibujar_interfaz()
 
     def dibujar_interfaz(self):
