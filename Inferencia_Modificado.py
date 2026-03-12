@@ -1,140 +1,110 @@
 import tkinter as tk
-from itertools import product
+import heapq
 
-# --- 1. BASE DE CONOCIMIENTOS (Red Bayesiana: Hospitales en GDL) ---
-P = {
-    'Lluvia_GDL': {True: 0.2, False: 0.8},
-    'Choque_Lopez_Mateos': {True: 0.15, False: 0.85},
-
-    'Caos_Norte_Periferico': { # 1 Padre: Solo Lluvia (Sin tupla)
-        True: {True: 0.75, False: 0.25},
-        False: {True: 0.20, False: 0.80}
-    },
-    'Caos_Sur_Las_Rosas': { # 2 Padres: Lluvia y Choque (Con tupla)
-        (True, True): {True: 0.99, False: 0.01},
-        (True, False): {True: 0.70, False: 0.30},
-        (False, True): {True: 0.85, False: 0.15},
-        (False, False): {True: 0.30, False: 0.70}
-    },
-
-    'Puerta_Hierro_Inaccesible': { # 1 Padre: Norte
-        True: {True: 0.80, False: 0.20},
-        False: {True: 0.10, False: 0.90}
-    },
-    'Real_San_Jose_Inaccesible': { # 1 Padre: Sur
-        True: {True: 0.85, False: 0.15},
-        False: {True: 0.15, False: 0.85}
-    },
-    'San_Javier_Inaccesible': { # 2 Padres: Norte y Sur
-        (True, True): {True: 0.90, False: 0.10},
-        (True, False): {True: 0.60, False: 0.40},
-        (False, True): {True: 0.65, False: 0.35},
-        (False, False): {True: 0.05, False: 0.95}
-    },
-
-    'Llegada_A_Tiempo': { # 2 Padres: Depende de las opciones Puerta Hierro y Real San Jose
-        (True, True): {True: 0.05, False: 0.95}, # Ambos inaccesibles = No llegas a tiempo
-        (True, False): {True: 0.80, False: 0.20}, # Uno libre = Llegas
-        (False, True): {True: 0.80, False: 0.20}, 
-        (False, False): {True: 0.99, False: 0.01} # Ambos libres = Llegas rapidísimo
-    }
+# --- 1. BASE DE CONOCIMIENTOS (Calles de GDL) ---
+MAPA = {
+    'Accidente_Minerva': {'Lopez_Mateos_N': 5, 'Vallarta': 8, 'Lopez_Mateos_S': 10},
+    
+    'Lopez_Mateos_N': {'Americas': 12, 'Terranova': 15},
+    'Americas': {'Hosp_San_Javier': 10},
+    'Terranova': {'Hosp_San_Javier': 5},
+    
+    'Vallarta': {'Las_Rosas': 15, 'Golfo_Mexico': 10},
+    'Las_Rosas': {'Hosp_San_Javier': 18},
+    'Golfo_Mexico': {'Hosp_San_Javier': 12},
+    
+    'Lopez_Mateos_S': {'Ninos_Heroes': 14, 'Washington': 20},
+    'Ninos_Heroes': {'Hosp_San_Javier': 25},
+    'Washington': {'Hosp_San_Javier': 30},
+    
+    'Hosp_San_Javier': {}
 }
 
-padres = {
-    'Lluvia_GDL': [],
-    'Choque_Lopez_Mateos': [],
-    'Caos_Norte_Periferico': ['Lluvia_GDL'],
-    'Caos_Sur_Las_Rosas': ['Lluvia_GDL', 'Choque_Lopez_Mateos'],
-    'Puerta_Hierro_Inaccesible': ['Caos_Norte_Periferico'],
-    'Real_San_Jose_Inaccesible': ['Caos_Sur_Las_Rosas'],
-    'San_Javier_Inaccesible': ['Caos_Norte_Periferico', 'Caos_Sur_Las_Rosas'],
-    'Llegada_A_Tiempo': ['Puerta_Hierro_Inaccesible', 'Real_San_Jose_Inaccesible']
+# Coordenadas respetando tu plantilla original para que no se encimen
+POS_MAPA = {
+    'Accidente_Minerva': (100, 325),
+    
+    'Lopez_Mateos_N': (275, 125), 
+    'Americas': (475, 50), 
+    'Terranova': (475, 175),
+    
+    'Vallarta': (275, 325), 
+    'Las_Rosas': (475, 300), 
+    'Golfo_Mexico': (475, 400),
+    
+    'Lopez_Mateos_S': (275, 525), 
+    'Ninos_Heroes': (475, 500), 
+    'Washington': (475, 600),
+    
+    'Hosp_San_Javier': (700, 325)
 }
 
-# --- 2. MOTOR DE INFERENCIA ---
-def probabilidad(variable, valor, asignacion):
-    if not padres[variable]: return P[variable][valor]
-    if len(padres[variable]) == 1:
-        return P[variable][asignacion[padres[variable][0]]][valor]
-    valores_padres = tuple(asignacion[p] for p in padres[variable])
-    return P[variable][valores_padres][valor]
+# --- 2. MOTOR DE BÚSQUEDA (Dijkstra) ---
+def buscar_ruta(inicio, meta):
+    cola = [(0, inicio, [])]
+    costos_minimos = {inicio: 0}
+    
+    ruta_final = []
+    costo_final = float('inf')
 
-def enumerar_todas(variables, asignacion):
-    if not variables: return 1.0
-    Y = variables[0]
-    resto = variables[1:]
-    if Y in asignacion:
-        return probabilidad(Y, asignacion[Y], asignacion) * enumerar_todas(resto, asignacion)
-    total = 0
-    for y in [True, False]:
-        asignacion[Y] = y
-        total += probabilidad(Y, y, asignacion) * enumerar_todas(resto, asignacion)
-        del asignacion[Y]
-    return total
+    while cola:
+        costo_actual, nodo_actual, camino = heapq.heappop(cola)
+        camino = camino + [nodo_actual]
 
-def inferencia_por_enumeracion(variable_consulta, evidencia):
-    resultado = {}
-    for valor in [True, False]:
-        evidencia[variable_consulta] = valor
-        resultado[valor] = enumerar_todas(list(P.keys()), evidencia.copy())
-        del evidencia[variable_consulta]
-    total = sum(resultado.values())
-    for val in resultado: resultado[val] /= total
-    return resultado
+        if nodo_actual == meta:
+            if costo_actual < costo_final:
+                costo_final = costo_actual
+                ruta_final = camino
+            continue
+
+        for vecino, peso in MAPA[nodo_actual].items():
+            nuevo_costo = costo_actual + peso
+            if vecino not in costos_minimos or nuevo_costo < costos_minimos[vecino]:
+                costos_minimos[vecino] = nuevo_costo
+                heapq.heappush(cola, (nuevo_costo, vecino, camino))
+
+    return ruta_final, costo_final
 
 # --- 3. INTERFAZ GRÁFICA ---
-class AppHospitales:
+class AppGrafoHospital:
     def __init__(self, root):
         self.root = root
-        self.root.title("Inferencia: Rutas a Hospitales en Guadalajara")
-        self.canvas = tk.Canvas(root, width=950, height=750, bg="#F9EBEA")
+        self.root.title("Emergencia Médica GDL: Ruta más rápida")
+        self.canvas = tk.Canvas(root, width=800, height=720, bg="#F9EBEA") # Fondo rojizo tenue
         self.canvas.pack()
 
-        # EVIDENCIA: Hay choque en López Mateos y el San Javier reporta bloqueo.
-        self.evidencia = {'Choque_Lopez_Mateos': True, 'San_Javier_Inaccesible': True}
-        self.consulta = 'Llegada_A_Tiempo'
-        self.resultado = inferencia_por_enumeracion(self.consulta, self.evidencia)
+        self.ruta, self.costo = buscar_ruta('Accidente_Minerva', 'Hosp_San_Javier')
+        self.dibujar_interfaz()
+
+    def dibujar_interfaz(self):
+        self.canvas.create_text(400, 30, text="EMERGENCIA GDL: MAPA DE RUTAS AL HOSPITAL", font=("Arial", 16, "bold"), fill="#922B21")
         
-        self.dibujar_red()
+        # 3.1 Dibujar conexiones
+        for origen, vecinos in MAPA.items():
+            x1, y1 = POS_MAPA[origen]
+            for dest, peso in vecinos.items():
+                x2, y2 = POS_MAPA[dest]
+                es_optima = (origen in self.ruta and dest in self.ruta and self.ruta.index(dest) == self.ruta.index(origen)+1)
+                
+                color = "#E74C3C" if es_optima else "#BDC3C7" # Rojo si es óptima
+                ancho = 5 if es_optima else 2
+                self.canvas.create_line(x1, y1, x2, y2, fill=color, width=ancho)
+                self.canvas.create_text((x1+x2)/2, (y1+y2)/2 - 15, text=f"{peso}m", font=("Arial", 10, "bold"), fill="#641E16")
 
-    def dibujar_red(self):
-        self.canvas.create_text(475, 30, text="EMERGENCIA MÉDICA GDL (INFERENCIA EXACTA)", font=("Arial", 16, "bold"), fill="#922B21")
-        
-        nodos = {
-            'Lluvia_GDL': (300, 100), 'Choque_Lopez_Mateos': (650, 100),
-            'Caos_Norte_Periferico': (200, 250), 'Caos_Sur_Las_Rosas': (750, 250),
-            'Puerta_Hierro_Inaccesible': (200, 420), 'San_Javier_Inaccesible': (475, 420), 'Real_San_Jose_Inaccesible': (750, 420),
-            'Llegada_A_Tiempo': (475, 580)
-        }
+        # 3.2 Dibujar ubicaciones
+        for nodo, (x, y) in POS_MAPA.items():
+            color = "#F1C40F" if nodo in self.ruta else "#34495E"
+            self.canvas.create_oval(x-25, y-25, x+25, y+25, fill=color, outline="black")
+            texto_limpio = nodo.replace("_", " ")
+            self.canvas.create_text(x, y+35, text=texto_limpio, font=("Arial", 9, "bold"))
 
-        for hijo, lista_padres in padres.items():
-            x_hijo, y_hijo = nodos[hijo]
-            for padre in lista_padres:
-                x_padre, y_padre = nodos[padre]
-                self.canvas.create_line(x_padre, y_padre+20, x_hijo, y_hijo-20, arrow=tk.LAST, width=3, fill="#CD6155")
-
-        for nombre, (x, y) in nodos.items():
-            es_evidencia = nombre in self.evidencia
-            es_consulta = nombre == self.consulta
-            color = "#F4D03F" if es_evidencia else ("#85C1E9" if es_consulta else "#FDEDEC")
-            grosor = 3 if es_evidencia or es_consulta else 1
-            
-            self.canvas.create_rectangle(x-90, y-25, x+90, y+25, fill=color, outline="#641E16", width=grosor)
-            texto = nombre.replace("_", " ")
-            self.canvas.create_text(x, y, text=texto, font=("Arial", 8, "bold"), fill="#17202A")
-
-        prob = self.resultado[True] * 100
-        texto_inferencia = (
-            f"EVIDENCIA OBSERVADA:\n"
-            f"- Choque grave en López Mateos (Sur).\n"
-            f"- El Hospital San Javier está inaccesible en este momento.\n\n"
-            f"DIAGNÓSTICO DEL SISTEMA:\n"
-            f"Considerando el redireccionamiento hacia Puerta Hierro o el Real San José,\n"
-            f"la probabilidad matemática de Llegar a Tiempo a Urgencias es del {prob:.2f}%."
-        )
-        self.canvas.create_text(475, 680, text=texto_inferencia, font=("Consolas", 11), justify="center")
+        # 3.3 Veredicto
+        texto_final = (f"VEREDICTO DEL GPS DE LA AMBULANCIA:\n"
+                       f"Ruta óptima calculada: {' -> '.join([n.replace('_', ' ') for n in self.ruta])}\n"
+                       f"Tiempo estimado de llegada: {self.costo} minutos.")
+        self.canvas.create_text(400, 680, text=texto_final, font=("Arial", 13, "bold"), fill="#922B21", justify="center")
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = AppHospitales(root)
+    app = AppGrafoHospital(root)
     root.mainloop()
