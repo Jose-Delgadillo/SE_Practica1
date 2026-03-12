@@ -20,13 +20,23 @@ MAPA = {
     'Cliente': {}
 }
 
-# Coordenadas ajustadas y centradas para el mapa
+# Coordenadas MUCHO más separadas para evitar que se encimen
 POS_MAPA = {
-    'Almacen': (100, 250),
-    'Norte_1': (250, 100), 'Norte_2': (400, 50), 'Desvio_N': (400, 150),
-    'Centro_1': (250, 250), 'Centro_2': (400, 220), 'Atajo_C': (400, 280),
-    'Sur_1': (250, 400), 'Sur_2': (400, 350), 'Desvio_S': (400, 450),
-    'Cliente': (550, 250)
+    'Almacen': (100, 325),
+    
+    'Norte_1': (275, 125), 
+    'Norte_2': (475, 50), 
+    'Desvio_N': (475, 175),
+    
+    'Centro_1': (275, 325), 
+    'Centro_2': (475, 300), 
+    'Atajo_C': (475, 400),
+    
+    'Sur_1': (275, 525), 
+    'Sur_2': (475, 500), 
+    'Desvio_S': (475, 600),
+    
+    'Cliente': (700, 325)
 }
 
 # --- 2. MOTOR DE BÚSQUEDA (Dijkstra) ---
@@ -56,21 +66,23 @@ def buscar_ruta(inicio, meta):
 
     return ruta_final, costo_final
 
-# --- 3. INTERFAZ GRÁFICA (Solo el Grafo) ---
+# --- 3. INTERFAZ GRÁFICA ---
 class AppGrafo:
     def __init__(self, root):
         self.root = root
         self.root.title("Sistema Experto: Grafo de Rutas (Dijkstra)")
-        self.canvas = tk.Canvas(root, width=700, height=550, bg="#F4F6F6")
+        # Lienzo más grande: 800 de ancho x 720 de alto
+        self.canvas = tk.Canvas(root, width=800, height=720, bg="#F4F6F6")
         self.canvas.pack()
 
         self.ruta, self.costo = buscar_ruta('Almacen', 'Cliente')
         self.dibujar_interfaz()
 
     def dibujar_interfaz(self):
-        self.canvas.create_text(350, 30, text="MAPA DE RUTAS (GRAFO)", font=("Arial", 16, "bold"))
+        # Título más arriba
+        self.canvas.create_text(400, 30, text="MAPA DE RUTAS (GRAFO)", font=("Arial", 16, "bold"))
         
-        # Dibujar las conexiones (aristas)
+        # 3.1 Dibujar conexiones (líneas)
         for origen, vecinos in MAPA.items():
             x1, y1 = POS_MAPA[origen]
             for dest, peso in vecinos.items():
@@ -81,20 +93,22 @@ class AppGrafo:
                 ancho = 5 if es_optima else 2
                 self.canvas.create_line(x1, y1, x2, y2, fill=color, width=ancho)
                 
-                # Texto del peso (minutos)
-                self.canvas.create_text((x1+x2)/2, (y1+y2)/2 - 12, text=f"{peso}m", font=("Arial", 10, "bold"), fill="#34495E")
+                # Texto de los minutos, desplazado un poco hacia arriba para que no toque la línea
+                self.canvas.create_text((x1+x2)/2, (y1+y2)/2 - 15, text=f"{peso}m", font=("Arial", 10, "bold"), fill="#34495E")
 
-        # Dibujar las ubicaciones (nodos)
+        # 3.2 Dibujar ubicaciones (círculos)
         for nodo, (x, y) in POS_MAPA.items():
             color = "#F39C12" if nodo in self.ruta else "#34495E"
-            self.canvas.create_oval(x-20, y-20, x+20, y+20, fill=color, outline="black")
-            self.canvas.create_text(x, y+30, text=nodo, font=("Arial", 10, "bold"))
+            # Círculos ligeramente más grandes
+            self.canvas.create_oval(x-25, y-25, x+25, y+25, fill=color, outline="black")
+            # Texto debajo del círculo
+            self.canvas.create_text(x, y+35, text=nodo, font=("Arial", 10, "bold"))
 
-        # Veredicto final en la parte inferior
+        # 3.3 Veredicto final más abajo
         texto_final = (f"VERDICTO DEL EXPERTO:\n"
                        f"Ruta óptima encontrada: {' -> '.join(self.ruta)}\n"
                        f"Tiempo total: {self.costo} minutos.")
-        self.canvas.create_text(350, 500, text=texto_final, font=("Arial", 12, "bold"), fill="#145A32", justify="center")
+        self.canvas.create_text(400, 680, text=texto_final, font=("Arial", 13, "bold"), fill="#145A32", justify="center")
 
 if __name__ == "__main__":
     root = tk.Tk()
