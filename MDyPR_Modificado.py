@@ -2,38 +2,71 @@ import tkinter as tk
 import random
 from collections import Counter
 
-# --- 1. BASE DE CONOCIMIENTOS (Eventos en Cascada) ---
+# --- 1. BASE DE CONOCIMIENTOS (Grafo de 7 Nodos) ---
 P = {
-    'Tormenta': {True: 0.3, False: 0.7},
-    'Inundacion_Av': { # Depende de Tormenta
-        (True,): {True: 0.8, False: 0.2},
+    'Tormenta': {True: 0.15, False: 0.85},
+    'Evento_Deportivo': {True: 0.10, False: 0.90},
+    
+    'Inundacion': {
+        (True,): {True: 0.7, False: 0.3},
+        (False,): {True: 0.05, False: 0.95}
+    },
+    'Trafico_Centro': {
+        (True,): {True: 0.85, False: 0.15},
+        (False,): {True: 0.2, False: 0.8}
+    },
+    
+    'Ruta_Principal_Cerrada': {
+        (True,): {True: 0.9, False: 0.1},
         (False,): {True: 0.1, False: 0.9}
     },
-    'Ruta_Cerrada': { # Depende de Inundacion_Av
-        (True,): {True: 0.9, False: 0.1},
-        (False,): {True: 0.2, False: 0.8}
+    'Ruta_Alterna_Lenta': {
+        (True, True): {True: 0.95, False: 0.05},
+        (True, False): {True: 0.6, False: 0.4},
+        (False, True): {True: 0.7, False: 0.3},
+        (False, False): {True: 0.1, False: 0.9}
+    },
+    
+    'Llegada_Tarde': {
+        (True, True): {True: 0.99, False: 0.01},
+        (True, False): {True: 0.8, False: 0.2},
+        (False, True): {True: 0.7, False: 0.3},
+        (False, False): {True: 0.05, False: 0.95}
     }
 }
 
-# --- 2. MOTOR DE MUESTREO (Tu código exacto) ---
+# --- 2. MOTOR DE MUESTREO (MD y PR) ---
 def sample_boolean(prob):
     return random.random() < prob
 
 def muestreo_por_rechazo(n_muestras, evidencia):
     muestras = []
     intentos = 0
-    while len(muestras) < n_muestras and intentos < n_muestras * 20:
+    while len(muestras) < n_muestras and intentos < n_muestras * 50:
         muestra = {}
-        a = sample_boolean(P['Tormenta'][True])
-        muestra['Tormenta'] = a
-        b = sample_boolean(P['Inundacion_Av'][(a,)][True])
-        muestra['Inundacion_Av'] = b
-        c = sample_boolean(P['Ruta_Cerrada'][(b,)][True])
-        muestra['Ruta_Cerrada'] = c
+        
+        # Muestreo Top-Down (Cascada)
+        t = sample_boolean(P['Tormenta'][True])
+        ed = sample_boolean(P['Evento_Deportivo'][True])
+        muestra['Tormenta'], muestra['Evento_Deportivo'] = t, ed
+        
+        i = sample_boolean(P['Inundacion'][(t,)][True])
+        tc = sample_boolean(P['Trafico_Centro'][(ed,)][True])
+        muestra['Inundacion'], muestra['Trafico_Centro'] = i, tc
+        
+        rp = sample_boolean(P['Ruta_Principal_Cerrada'][(i,)][True])
+        ra = sample_boolean(P['Ruta_Alterna_Lenta'][(i, tc)][True])
+        muestra['Ruta_Principal_Cerrada'], muestra['Ruta_Alterna_Lenta'] = rp, ra
+        
+        lt = sample_boolean(P['Llegada_Tarde'][(rp, ra)][True])
+        muestra['Llegada_Tarde'] = lt
+        
         intentos += 1
 
-        cumple = all(muestra.get(var) == val for var, val in evidencia.items())
-        if cumple: muestras.append(muestra)
+        # Filtro de Rechazo: ¿Coincide con la evidencia?
+        if all(muestra.get(var) == val for var, val in evidencia.items()):
+            muestras.append(muestra)
+            
     return muestras
 
 def estimar_distribucion(muestras, variable):
@@ -45,49 +78,54 @@ def estimar_distribucion(muestras, variable):
 class AppMuestreo:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema Experto: Simulación por Muestreo (Rechazo)")
-        self.canvas = tk.Canvas(root, width=800, height=720, bg="#E8F8F5")
+        self.root.title("Programa 3: MD - Muestreo Directo y por Rechazo")
+        self.canvas = tk.Canvas(root, width=950, height=750, bg="#E8F8F5")
         self.canvas.pack()
 
-        self.n_simulaciones = 2000
-        self.evidencia = {'Inundacion_Av': True}
-        self.muestras = muestreo_por_rechazo(self.n_simulaciones, self.evidencia)
-        self.distribucion = estimar_distribucion(self.muestras, 'Ruta_Cerrada')
+        # Simulamos 10,000 días, pero solo nos quedamos con los días donde hubo Inundación
+        self.n = 5000
+        self.evidencia = {'Inundacion': True}
+        self.muestras = muestreo_por_rechazo(self.n, self.evidencia)
+        self.dist = estimar_distribucion(self.muestras, 'Llegada_Tarde')
         
-        self.dibujar_simulacion()
+        self.dibujar_grafo()
 
-    def dibujar_simulacion(self):
-        self.canvas.create_text(400, 40, text="SIMULADOR DE RIESGOS (MUESTREO POR RECHAZO)", font=("Arial", 16, "bold"))
+    def dibujar_grafo(self):
+        self.canvas.create_text(475, 40, text="SIMULACIÓN: MUESTREO POR RECHAZO (MDyPR)", font=("Arial", 16, "bold"), fill="#0E6251")
         
-        # Dibujar la cadena de eventos (Horizontal)
-        nodos = [("1. Tormenta", 200), ("2. Inundación Av.", 400), ("3. Ruta Cerrada", 600)]
-        for i, (nombre, x) in enumerate(nodos):
-            y = 200
-            # Dibujar flechas entre nodos
-            if i > 0: self.canvas.create_line(nodos[i-1][1]+60, y, x-60, y, arrow=tk.LAST, width=3)
-            
-            color = "#F39C12" if "Inundación" in nombre else "#D6EAF8"
-            self.canvas.create_rectangle(x-70, y-30, x+70, y+30, fill=color, outline="black", width=2)
-            self.canvas.create_text(x, y, text=nombre, font=("Arial", 10, "bold"))
+        # Nodos del DAG
+        nodos = {
+            'Tormenta': (300, 150), 'Evento Deportivo': (650, 150),
+            'Inundacion': (300, 300), 'Trafico Centro': (650, 300),
+            'Ruta Principal Cerrada': (300, 450), 'Ruta Alterna Lenta': (650, 450),
+            'Llegada Tarde': (475, 600)
+        }
 
-        self.canvas.create_text(400, 260, text="Variables en Cascada. Evidencia fija: Inundación en la Avenida = TRUE", font=("Arial", 10, "italic"))
+        conexiones = [
+            ('Tormenta', 'Inundacion'), ('Evento Deportivo', 'Trafico Centro'),
+            ('Inundacion', 'Ruta Principal Cerrada'), ('Inundacion', 'Ruta Alterna Lenta'),
+            ('Trafico Centro', 'Ruta Alterna Lenta'),
+            ('Ruta Principal Cerrada', 'Llegada Tarde'), ('Ruta Alterna Lenta', 'Llegada Tarde')
+        ]
 
-        # Panel de resultados de la simulación
-        self.canvas.create_rectangle(150, 350, 650, 550, fill="white", outline="#117A65", width=3, dash=(5,5))
-        self.canvas.create_text(400, 380, text="📊 RESULTADOS DE LAS SIMULACIONES 📊", font=("Arial", 12, "bold"))
-        
-        texto_simulacion = (
-            f"Se corrieron {self.n_simulaciones} simulaciones aleatorias.\n"
-            f"El algoritmo descartó todos los escenarios donde NO hubo inundación.\n\n"
-            f"De las simulaciones exitosas, la estadística es:\n"
-            f"Probabilidad de que la Ruta esté Cerrada: {self.distribucion[True]*100:.1f}%\n"
-            f"Probabilidad de que la Ruta esté Abierta: {self.distribucion[False]*100:.1f}%"
+        for orig, dest in conexiones:
+            x1, y1 = nodos[orig]
+            x2, y2 = nodos[dest]
+            self.canvas.create_line(x1, y1+20, x2, y2-20, arrow=tk.LAST, width=3, fill="#73C6B6")
+
+        for nombre, (x, y) in nodos.items():
+            es_evidencia = 'Inundacion' in nombre
+            color = "#F1C40F" if es_evidencia else "#EAFAF1"
+            self.canvas.create_rectangle(x-80, y-25, x+80, y+25, fill=color, outline="#0E6251", width=2)
+            self.canvas.create_text(x, y, text=nombre, font=("Arial", 9, "bold"))
+
+        texto = (
+            f"RESULTADOS DE LA SIMULACIÓN DE MONTE CARLO:\n"
+            f"Se generaron escenarios aleatorios hasta obtener {self.n} muestras válidas\n"
+            f"donde la evidencia observada (Inundación = True) se cumpliera. El resto se rechazó.\n\n"
+            f"Basado en las simulaciones exitosas, la probabilidad de llegar tarde es: {self.dist[True]*100:.2f}%."
         )
-        self.canvas.create_text(400, 460, text=texto_simulacion, font=("Consolas", 11), justify="center")
-
-        # Veredicto Final
-        veredicto = "CONCLUSIÓN: Riesgo crítico de cierre. El GPS debe buscar rutas alternativas." if self.distribucion[True] > 0.6 else "Ruta transitable, aunque con precaución."
-        self.canvas.create_text(400, 620, text=veredicto, font=("Arial", 13, "bold"), fill="#900C3F")
+        self.canvas.create_text(475, 680, text=texto, font=("Consolas", 11), justify="center", fill="#0E6251")
 
 if __name__ == "__main__":
     root = tk.Tk()
